@@ -1,0 +1,51 @@
+How To Run: 2 Ways
+1. without entering in db(no password enter) from outside
+    - mysql -u root -p db_name < mysql/schema.sql
+    - now Password entering
+
+2. from inside database(using source keyword)
+    - mysql -u root -p & password entering
+    - use db_name
+    - source mysql/schema.sql
+
+-------------------------------
+
+mysql = execute SQL
+MySQL server = actually stores and processes the database
+
+--------------------------------
+
+schema.sql
+   │
+   │  SQL statements
+   ↓
+mysql
+   │
+   ↓
+MySQL Server
+   │
+   ├── CREATE TABLE
+   ├── INSERT
+   └── SELECT
+
+--------------------------------
+
+schema.sql
+    ↓
+execute
+    ↓
+database
+
+---------------------------------
+
+.sql file
+   ↓
+write SQL
+   ↓
+save
+   ↓
+execute from terminal
+   ↓
+database executes it
+   ↓
+verify

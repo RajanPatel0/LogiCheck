@@ -1,0 +1,51 @@
+How To Run: 2 Ways
+1. without entering in db(no password enter) from outside
+    - psql -U postgres -d db_name -f < postgres/schema.sql
+    - now Password entering
+
+2. from inside database(using \i keyword)
+    - psql -U postgres & password entering
+    - \c db_name
+    - \i postgres/schema.sql
+
+---------------------------------
+
+psql = execute SQL
+PostgreSQL server = actually stores and processes the database
+
+----------------------------------
+
+schema.sql
+   │
+   │  SQL statements
+   ↓
+psql
+   │
+   ↓
+PostgreSQL Server
+   │
+   ├── CREATE TABLE
+   ├── INSERT
+   └── SELECT
+
+---------------------------------
+
+schema.sql
+    ↓
+execute
+    ↓
+database
+
+---------------------------------
+
+.sql file
+   ↓
+write SQL
+   ↓
+save
+   ↓
+execute from terminal
+   ↓
+database executes it
+   ↓
+verify
