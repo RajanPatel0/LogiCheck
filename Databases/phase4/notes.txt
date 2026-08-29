@@ -1,6 +1,6 @@
 Let's Practice On Postgres Only:
 
-DBMATE: tracks databse changes just using migrations (via maintaining schema.sql in code files) && schema_migrations new extra table in database
+Phase 4: DBMATE: tracks databse changes just using migrations (via maintaining schema.sql in code files) && schema_migrations new extra table in database
 
 0. .env provides database connection configuration, commonly through DATABASE_URL.
 
