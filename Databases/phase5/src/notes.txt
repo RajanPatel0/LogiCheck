@@ -1,0 +1,29 @@
+Practicing Making API using This Prisma:
+
+    The best beginner structure is:
+
+        schema.prisma → defines your database models
+        prisma7.config.ts → tells Prisma CLI how to connect
+        .env → stores DATABASE_URL
+        a single Prisma client instance → shared across the app   (hence we ccreate /lib/prisma.js) & use this everywhere required
+        routes → map URLs
+        controllers → handle HTTP logic
+        server → starts Express app
+
+----------------------------------
+
+    Simple rule to remember
+        Use Prisma like this:
+
+            schema → describes tables
+            migrate → creates tables
+            PrismaClient → used in app
+            routes → URL endpoints
+            controllers → business logic
+            server → starts app
+
+        Never do:
+
+            new PrismaClient() in each route
+            database logic directly in router file
+            top-level query execution outside request handlers

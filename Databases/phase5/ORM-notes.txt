@@ -1,0 +1,28 @@
+Object-Relational Mapping (ORM)
+    It's a programming technique that acts as a bridge between object-oriented programming (OOP) languages and relational databases. 
+        Instead of writing raw SQL queries, we work with objects in our code, 
+            and the ORM framework automatically translates these operations into SQL statements for the database.
+
+Core Principles
+    Entity Mapping: Classes in code map to database tables, attributes map to columns, and object instances map to rows.
+    Relationship Mapping: Supports one-to-one, one-to-many, and many-to-many relationships, converting them into foreign keys and join tables.
+    Data Type Mapping: Converts programming language data types to database-compatible types.
+    Persistence: Ensures data remains stored in the database even after the application stops running.
+
+Example: Prisma handles database operations, but the database system itself (PostgreSQL) is required.
+
+    Prisma ORM: for (PostgreSQL[database] working with Node, Express[Js specified language])
+
+----------------------------------------
+
+Prisma Notes = /notes.txt
+
+1. Definition
+2. Create Project: npm & prisma init and install
+3. .env: connect prisma to our DB
+4. schema.prisma building       [In Prisma’s own DSL (Domain‑Specific Language)]
+5. Running till created schema via migrate run: "npx prisma migrate dev --name create_users"
+        Prisma reads this DSL.
+        Generates SQL migration files (e.g., CREATE TABLE "User" (...)).
+        Applies them to your database.
+6. 
