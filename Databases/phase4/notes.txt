@@ -1,0 +1,192 @@
+Let's Practice On Postgres Only:
+
+DBMATE: tracks databse changes just using migrations (via maintaining schema.sql in code files) && schema_migrations new extra table in database
+
+0. .env provides database connection configuration, commonly through DATABASE_URL.
+
+1. Run: dbmate new create_staff
+            Creating migration: db\migrations\20260828112702_create_staff.sql
+
+2. Write SQL queries in that created migration file of(1) in --migrate-up
+
+3. run: dbmate up       (it Applies pending migrations.)
+      DBMate sees:
+         Migration:
+            20260828160000_create_staff.sql        which is pending 
+                executes its:
+                  -- migrate:up
+
+4. running (dbmate up) every time 
+      creates & maintains the migration history code in "schema_migrations" table
+            (this table & "schema.sql" in db/ created on dbmate up first time) & then after new migration code addition maintained in 
+               this "schema_migrations" table having codes like:
+                  ('20260828112702') - first migartion code for create_staff
+                  ('20260829074553') - second migartion code for add_age_to_staff
+
+5. 2nd Migration: Want to add age in staff table:
+                     so we don't use and edit old "create_staff" migration
+                        instead we create new: "dbmate new add_age_to_staff" migration and write alter age column in staff table query in this 
+                           -- migrate:up
+                              ALTER TABLE users
+                              ADD COLUMN age INT;
+
+                           -- migrate:down
+                              ALTER TABLE users
+                              DROP COLUMN age;
+
+6. Again run this 2nd migration via: "dbmate up"
+      DBMate sees:
+         Migration:
+            20260829074553_add_age_to_staff.sql
+                executes its:
+                  -- migrate:up
+
+7. after this new dbmate up   
+   schema_migrations table added up with new migration runned history code
+      ('20260829074553') - second migartion code for add_age_to_staff
+
+   .
+   then so on run furthur whatever migration we'wanna run
+   .
+
+8. we've "dbmate status" command (show migration state)
+      for checking - Which migrations have been applied?
+
+   we've "dbmate rollback" command
+      for DBMate goes backward: our migration history has effectively gone back one step.
+
+      Example: if we're at
+         003 add_age
+
+         so rollback executes:
+         -- migrate:down
+            ALTER TABLE users
+            DROP COLUMN age;
+
+9. From Here On We can use this dbmate (migration) ways in 2 ways:
+      (Pending)
+      1. Only For Schema creation for tables
+            then making pages(app-level) interact for creating/inserting database
+               **but for this we need some sort of client/orm which enable the node.js or whatever framework code 
+                  to have interact with database(Next Phase) 
+
+      (Can Do)
+      2. Or we can use seed migration like via "dbmate new seed.sql"
+            and writting all data which we wanna insert in which table
+               in --migrate up 
+                  and running this seed migration via "dbmate up"
+                     will insert the data in tables mentioned!
+
+-----------------------------------------------
+
+DBMate maintains a migration table in our database.
+
+Conceptually:
+
+schema_migrations
+   version
+   ----------------
+   20260828160000
+
+So if we run:
+   dbmate up
+
+   again, DBMate knows:
+   "I've already applied this migration."
+
+It doesn't blindly recreate the table.
+
+-----------------------------------------------
+
+Once a migration has been applied:
+   Treat it as immutable.
+
+Don't rewrite history.
+
+Instead create another migration.
+For example:
+   001_create_users.sql
+   002_create_staff.sql
+   003_add_age.sql
+   004_rename_age.sql
+
+Not:
+   001_create_users.sql
+   continuously edited over time.
+
+-----------------------------------------------
+
+A migration has two directions:
+
+migrate:up
+     ↓
+apply the change
+
+   AND
+
+migrate:down
+     ↓
+undo the change
+
+-----------------------------------------------
+
+The mental model:
+
+    Think of DBMate as: It's a Command Line Migration Tool
+
+SQL
++
+Migration History
++
+Apply / Undo
++
+Database Version Tracking
+
+It doesn't replace SQL.
+
+We still write SQL.
+
+DBMate manages when and how that SQL is applied.
+
+----------------------------------------------
+
+DBMate
+   ↓
+DATABASE_URL
+   ↓
+Which database?
+   ↓
+MySQL / PostgreSQL
+
+So yes, the migration system stays essentially the same.
+
+------------------------------------------------
+
+                    DBMate
+                       │
+                DATABASE_URL
+                       │
+          ┌────────────┴────────────┐
+          ↓                         ↓
+       MySQL                    PostgreSQL
+          │                         │
+          └──────────┬──────────────┘
+                     ↓
+                 migrations/
+                     │
+          ┌──────────┼──────────┐
+          ↓          ↓          ↓
+       001.sql     002.sql    003.sql
+          │          │          │
+          └──────────┼──────────┘
+                     ↓
+                  dbmate up
+                     ↓
+                 DATABASE
+
+For Backwards:
+   DATABASE
+      ↑
+   dbmate rollback
+      ↑
+   migration DOWN
