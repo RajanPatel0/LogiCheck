@@ -1,0 +1,138 @@
+Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
+
+1. ALUMNI: (plain SELECT, WHERE, INSERT, UPDATE, JOIN)
+    GET /api/alumni — list all registered alumni 
+        SELECT * FROM alumni where is_registered=true;
+
+    GET /api/alumni/:id — single alumni by id
+        SELECT * FROM alumni where id ='al_riya';
+    
+    GET /api/alumni?campus=camp_jal — filter by campus
+        SELECT * FROM alumni where campus_id='camp_jal';
+
+    GET /api/alumni?branch=Computer Science and Engineering&batchYear=2022 — multi-field filter
+        SELECT * FROM alumni where branch='Computer Science and Engineering' and batch_year=2022;
+
+    GET /api/alumni/search?q=riya — case-insensitive partial match on name/email (Using ILIKE)
+        SELECT * FROM alumni where name ilike 'riya%';          //OR
+        SELECT * FROM alumni where name ilike '%sharma';        //OR
+        SELECT * FROM alumni where email ilike '%sharma%';
+    
+    POST /api/alumni — insert a new alumni row
+        INSERT INTO alumni (id, name, email, batch_year, branch, college, course, current_job_role, current_company, city, campus_id, is_registered, invite_status, needs_review) VALUES
+            ('al_rapa', 'Rajan Patel', 'rajan.patel@example.com', 2023, 'Computer Science and Engineering', 'IKGPTU Main Campus', 'B.Tech', 'Backend Engineer', 'Meta', 'Ludhiana', 'camp_jal', true, 'REGISTERED', false);
+
+    PATCH /api/alumni/:id — update current_role/current_company
+        update alumni set current_job_role='SDE' , current_company='Google' where id='al_riya' returning *;
+
+    DELETE /api/alumni/:id — delete + verify "cascade" behavior on education/work_experiences/posts
+        delete from alumni where id='al_rapa';
+
+    *GET /api/alumni/duplicates — find alumni sharing the same email domain or phone (self-join / GROUPBY HAVING COUNT > 1)
+        select split_part(email, '@', 2) as same_domain, 
+	        count(*) as alumni_count 
+            from alumni where email is not null 
+            group by split_part(email, '@', 2) 
+            having count(*)>1 
+            order by alumni_count desc;
+        
+        "split_part(email, '@', 2)" = extracts domain after @
+
+    **GET /api/alumni/:id/full-profile — one query joining alumni row with (education + work_experiences + startups) tables for[Profile] using (LEFT JOIN, avoid row-count blowup issues)
+        => Every profile required table has alumni_id as foreign key with alumni table id so we can use join (for alumni + ...)
+        
+        1. Raw Join Query (n*n):
+            SELECT a.id AS alumni_id, a.name,
+                e.school, e.degree,
+                w.company, w.title,
+                s.name AS startup_name
+            FROM alumni a
+            LEFT JOIN education e ON a.id = e.alumni_id
+            LEFT JOIN work_experiences w ON a.id = w.alumni_id
+            LEFT JOIN startups s ON a.id = s.founder_id
+            WHERE a.id = 'al_riya';
+
+        2. Aggregated JSON profile (production‑style): "to_jsonb()" it stores only 1 table info but we need 3 table for profiile:
+            SELECT 
+                a.id AS alumni_id,
+                a.name,
+                a.email,
+                -- Aggregate education
+                COALESCE(
+                (SELECT json_agg(e) 
+                FROM education e 
+                WHERE e.alumni_id = a.id), '[]'
+                ) AS education,
+                -- Aggregate work experiences
+                COALESCE(
+                (SELECT json_agg(w) 
+                FROM work_experiences w 
+                WHERE w.alumni_id = a.id), '[]'
+                ) AS work_experiences,
+                -- Aggregate startups
+                COALESCE(
+                (SELECT json_agg(s) 
+                FROM startups s 
+                WHERE s.founder_id = a.id), '[]'
+                ) AS startups
+            FROM alumni a
+            WHERE a.id = 'al_riya';
+
+    OR 
+
+        so EITHER we use: "jsonb_build_object()" with joins
+                    SELECT 
+                        a.*,
+                        jsonb_build_object(
+                            'education', COALESCE(json_agg(e) FILTER (WHERE e.id IS NOT NULL), '[]'),
+                            'work_experiences', COALESCE(json_agg(w) FILTER (WHERE w.id IS NOT NULL), '[]'),
+                            'startups', COALESCE(json_agg(s) FILTER (WHERE s.id IS NOT NULL), '[]')
+                        ) AS profile
+                    FROM alumni a
+                    LEFT JOIN education e ON a.id = e.alumni_id
+                    LEFT JOIN work_experiences w ON a.id = w.alumni_id
+                    LEFT JOIN startups s ON a.id = s.founder_id
+                    WHERE a.id = 'al_riya'
+                    GROUP BY a.id;
+
+                1. jsonb_build_object → builds a JSON object with named keys.
+                2. json_agg(e) → aggregates all education rows into a JSON array.
+                3. FILTER (WHERE e.id IS NOT NULL) → avoids nulls when no rows exist.
+                4. GROUP BY a.id → ensures one row per alumni.
+
+                    COALESCE(json_agg(e) FILTER (WHERE e.id IS NOT NULL), '[]')
+                        * This version is used when you’re joining tables directly.
+                        * Because of the join, you might get NULL rows if no education/work/startup exists.
+                        * FILTER (WHERE e.id IS NOT NULL) ensures that only real rows are aggregated.
+                        * COALESCE(..., '[]') guarantees that if no rows exist, you still get an empty JSON array ([]) instead of null.
+
+                        👉 This is useful when you’re writing a GROUP BY query with joins.
+
+            OR: This avoids the row multiplication trap entirely:
+
+                    SELECT 
+                        a.*,
+                        jsonb_build_object(
+                            'education', COALESCE((SELECT json_agg(e) FROM education e WHERE e.alumni_id = a.id), '[]'),
+                            'work_experiences', COALESCE((SELECT json_agg(w) FROM work_experiences w WHERE w.alumni_id = a.id), '[]'),
+                            'startups', COALESCE((SELECT json_agg(s) FROM startups s WHERE s.founder_id = a.id), '[]')
+                        ) AS profile
+                    FROM alumni a
+                    WHERE a.id = 'al_riya';
+
+                1. Each subquery independently aggregates rows into JSON. (no joins of tables level)
+                2. No cross-product multiplication.
+                3. Returns exactly one row per alumni with a nested JSON profile.
+
+                    COALESCE((SELECT json_agg(e) FROM education e WHERE e.alumni_id = a.id), '[]')
+                        * This version uses a correlated subquery.
+                        * Each subquery runs independently for that alumni, so you don’t risk cross‑product multiplication.
+                        * If the subquery finds no rows, json_agg returns NULL.
+                        * Wrapping in COALESCE(..., '[]') again ensures you get [] instead of null.
+
+                        👉 This is cleaner when you want one row per alumni with nested arrays, especially for API endpoints.
+
+
+2. EVENTS & RSVPs: (JOIN, GROUP BY, aggregation ratios, upsert)
+    GET /api/events — published events, soonest first
+    
