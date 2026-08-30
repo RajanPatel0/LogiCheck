@@ -135,4 +135,35 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
 
 2. EVENTS & RSVPs: (JOIN, GROUP BY, aggregation ratios, upsert)
     GET /api/events — published events, soonest first
+        select * from events where is_published=true order by event_date asc;
+
+    GET /api/registration-requests?campus=camp_jal&needsReview=true
+        select * from registration_requests where campus_id='camp_jal' and needs_review=true;
+
+    GET /api/events/:id/rsvps — all RSVPs for one event == means we can get from rsvp table having rows with that 1 event
+        select * from events;select * from rsvps where event_id = 'ev_meet2026';
     
+    GET /api/events/:id/rsvp-summary — COUNT of ATTENDING / MAYBE / NOT_ATTENDING per event (GROUP BY status)
+        select event_id, status, count(*) as rsvp_count from rsvps group by event_id, status;
+
+    GET /api/alumni/:id/events — events an alumni RSVP'd to (JOIN rsvps → events) - filtered by alumni_id
+        select * from rsvps r
+        join events e on r.event_id=e.id
+        where r.alumni_id='al_riya';
+
+    **GET /api/events/low-turnout — events where ATTENDING count < 50% of total RSVPs (subquery/CTE + ratio)
+      1.with rsvp_counts as ( --cte function
+            select event_id,
+                count(*) as total_rsvps,
+                count(*) filter (where status='ATTENDING') as attending_rsvps
+            from rsvps
+            group by event_id	-- for each events table row need that's rsvp data categorized in 2 params 
+        )
+
+      2.select event_id from rsvp_counts where attending_rsvps > total_rsvps*0.5;
+
+    *POST /api/events/:id/rsvp — upsert an RSVP (respect the alumni_id+event_id UNIQUE constraint — use ON CONFLICT)
+        INSERT INTO rsvps (alumni_id, event_id, status)
+        VALUES ('al_riya', 'ev_meet2026', 'ATTENDING')
+        ON CONFLICT (alumni_id, event_id)
+        DO UPDATE SET status = EXCLUDED.status;
