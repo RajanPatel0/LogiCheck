@@ -167,3 +167,25 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
         VALUES ('al_riya', 'ev_meet2026', 'ATTENDING')
         ON CONFLICT (alumni_id, event_id)
         DO UPDATE SET status = EXCLUDED.status;
+
+
+3. Jobs (GROUP BY, date filtering)
+    GET /api/jobs?category=VACANCY&isActive=true
+        select * from jobs where category='VACANCY' and is_active=true;
+
+    GET /api/jobs/by-company — GROUP BY company, COUNT(*) active postings
+        select company, count(*) as active_postings
+        from jobs where is_active=true group by company;
+
+            👉 Rule of thumb:
+                Use WHERE for row filters (like is_active = true).
+                Use HAVING only for aggregate filters (like HAVING COUNT(*) > 10).
+
+    GET /api/alumni/:id/jobs-posted — jobs posted by one alumnus
+        select * from jobs where posted_by_alumni_id='al_riya';
+
+    **GET /api/jobs/expiring-soon — expire_at within next 7 days, ordered ascending (date filtering + ORDER BY)
+        SELECT *
+        FROM jobs
+        WHERE expire_at BETWEEN now() AND (now() + interval '7 days')
+        ORDER BY expire_at ASC;
