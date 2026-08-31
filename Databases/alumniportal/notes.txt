@@ -173,7 +173,7 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
     GET /api/jobs?category=VACANCY&isActive=true
         select * from jobs where category='VACANCY' and is_active=true;
 
-    GET /api/jobs/by-company — GROUP BY company, COUNT(*) active postings
+    *GET /api/jobs/by-company — GROUP BY company, COUNT(*) active postings
         select company, count(*) as active_postings
         from jobs where is_active=true group by company;
 
@@ -189,3 +189,341 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
         FROM jobs
         WHERE expire_at BETWEEN now() AND (now() + interval '7 days')
         ORDER BY expire_at ASC;
+
+
+4. Academic Normalization + Registration Requests (anti-joins, transactions, date arithmetic)
+    GET /api/academic-options?type=BRANCH — active canonical branches
+        SELECT * FROM academic_options where type='BRANCH' and is_active=true;
+
+    GET /api/alumni/needs-review — all alumni flagged needs_review = true
+        SELECT * FROM alumni where needs_review=true;
+
+    **GET /api/normalization/variants?field=branch — DISTINCT raw branch strings not present in academic_options.value (anti-join / NOT IN / NOT EXISTS)
+        {Using 3 anti‑join patterns}
+        'Distinct' used for single row single entry showing even if same unnormalized word ex. 3row for 3 "CSE"
+
+        1. Using "Not in":
+            SELECT distinct a.branch from alumni a
+            where a.branch not in (             #main diff.
+                select ao.value
+                from academic_options ao
+                WHERE ao.type = 'BRANCH'
+            );
+
+        2. Using "Not exists":
+            SELECT distinct a.branch from alumni a
+            where not exists (                  #main diff. 1
+                select 1                        #main diff. 2
+                from academic_options ao
+                WHERE ao.type = 'BRANCH'
+                and ao.value=a.branch         #main diff. 3
+            );
+        
+        2. Using "left Join with is null on right's table" for left-alumni(all branches data) right-academic_options(fixed corrected one's) : [so getting is null from right]
+            SELECT distinct a.name, a.branch from alumni a
+            left join academic_options ao
+                on a.branch=ao.value ND ao.type = 'BRANCH'
+                where ao.value is null; 
+
+    **POST /api/normalization/merge — transaction: UPDATE alumni + UPDATE registration_requests + INSERT normalization_merge_logs, all-or-nothing
+        "Normalization merge, as a transaction"- most imp. as we use 
+            1. Begin -> 2. update alumni set branch="normalized_whatever"
+            3. a matching UPDATE registration_requests -> 4. insert into "normalized_merge_logs" recording what changed
+            5. commit
+
+        1. BEGIN;
+
+            -- Step 1: Update alumni
+            UPDATE alumni
+            SET branch = 'Computer Science and Engineering'
+            WHERE branch = 'CSE';
+
+            -- Step 2: Update registration_requests
+            UPDATE registration_requests
+            SET branch = 'Computer Science and Engineering'
+            WHERE branch = 'CSE';
+
+            -- Step 3: Insert into normalization_merge_logs - [But this inserts id of all alumni's having matched branch not only justup to previous step1 alumni branch updations]
+            INSERT INTO normalization_merge_logs (
+                id,
+                field,
+                from_values,
+                to_value,
+                affected_ids,
+                performed_by
+            )
+            VALUES (
+                gen_random_uuid(),
+                'branch',
+                '["CSE"]',   -- JSON array of old variants
+                'Computer Science and Engineering',
+                (SELECT json_agg(id)::text FROM alumni WHERE branch = 'Computer Science and Engineering'),
+                'system'
+            );
+
+            COMMIT;
+
+        OR
+
+        for properly getting mapped with only last step updated id's in upddate alumni/update registration_request - [so only those associated id got inserted in normalization_merge_logs]
+            WITH updated_alumni AS (
+                UPDATE alumni
+                SET branch = 'Computer Science and Engineering'
+                WHERE branch = 'CSE'
+                RETURNING id
+            ),
+            updated_requests AS (
+                UPDATE registration_requests
+                SET branch = 'Computer Science and Engineering'
+                WHERE branch = 'CSE'
+                RETURNING id
+            )
+            INSERT INTO normalization_merge_logs (
+                    id, field, from_values, to_value, affected_ids, performed_by
+            )
+            VALUES (
+                gen_random_uuid(),
+                'branch',
+                '["CSE"]',
+                'Computer Science and Engineering',
+                (
+                    SELECT json_agg(id)::text 
+                    FROM (
+                        SELECT id FROM updated_alumni
+                        UNION ALL
+                        SELECT id FROM updated_requests
+                    ) t
+                ),
+                'system'
+            );
+
+    GET /api/normalization/logs?field=branch — audit history for one field
+        select * from normalization_merge_logs where field='branch' order by created_at desc;
+
+    **GET /api/academic-options/usage-count — for each canonical branch, COUNT(*) of alumni currently using it (LEFT JOIN + GROUP BY, including zero-usage options)
+        select ao.value, count(*) as usage_count
+        from academic_options as ao
+        left join alumni a
+        on ao.value=a.branch
+        group by ao.value;
+
+    GET /api/registration-requests?status=PENDING
+        select * from registration_requests where status='PENDING';
+
+    GET /api/registration-requests?campus=camp_jal&needsReview=true
+        select * from registration_requests where campus_id='camp_jal' and needs_review=true;
+
+    **POST /api/registration-requests/:id/approve — transaction: INSERT into alumni from the request row, UPDATE registration_requests.status = APPROVED
+        Using "INSERT … SELECT" → copies values directly from the request row into alumni
+        
+        Begin;
+
+        -- Step 1: Insert into alumni from the registration request
+        insert into alumni(id, name, email, batch_year, branch, course, college, campus_id, created_at)
+        select rr.id,       --or we use the gen_random_uuid(),
+        rr.name,
+        rr.email,
+        rr.batch_year,
+        rr.branch,
+        rr.course,
+        rr.college,
+        rr.campus_id,
+        now()
+        from registration_requests as rr
+        where rr.id='rr_ankit'
+        and 
+        rr.status='PENDING';
+
+        -- Step 2: Update the registration request status
+        UPDATE registration_requests
+        SET status = 'APPROVED',
+            updated_at = now()
+        WHERE id = 'rr_ankit';
+
+        Commit;
+
+    *GET /api/registration-requests/stale — requests older than 30 days still PENDING (date arithmetic: NOW() - INTERVAL)
+        SELECT *
+        FROM registration_requests
+        WHERE status = 'PENDING'
+        AND created_at < (now() - interval '30 days');
+
+
+5. Social Graph (connections & follows) - (self-joins, multi-hop traversal)
+    GET /api/alumni/:id/connections?status=ACCEPTED
+        select * from connections 
+        where sender_id='al_riya' or receiver_id='al_arjun' 
+        and status='ACCEPTED';
+
+    GET /api/alumni/:id/pending-requests — connections where receiver_id = :id AND status = PENDING
+        select * from connections 
+        where receiver_id='al_riya' 
+        and status='PENDING';
+
+    GET /api/alumni/:id/followers (Followers of one alumni)— join alumni_follows → alumni on follower_id
+        select f.follower_id, a.name
+        from alumni_follows as f 
+        join alumni a 
+        on f.follower_id=a.id
+        where f.following_id='al_riya';
+
+    GET /api/alumni/:id/following (who one alumni follows)— join alumni_follows → alumni on following_id
+        select f.following_id, a.name
+        from alumni_follows as f 
+        join alumni a 
+        on f.following_id=a.id
+        where f.follower_id='al_riya';
+
+    **GET /api/alumni/mutual-connections?a=al_riya&b=al_arjun — alumni who follow both A and B (self join alumni_follows twice, or INTERSECT)   
+        1. Using Self-Join
+            select f1.follower_id
+            from alumni_follows as f1
+            join alumni_follows as f2
+            on f1.follower_id=f2.follower_id
+            where f1.following_id='al_riya'
+            and f2.following_id='al_karan';
+                                                OR
+        2. Using INTERSECT
+            select follower_id
+            from alumni_follows
+            where following_id='al_riya'
+            intersect
+            select follower_id
+            from alumni_follows
+            where following_id='al_karan';
+
+    ***GET /api/alumni/suggested-connections/:id — alumni followed by people :id follows, excluding people :id already follows (2-hop graph query)
+        with self‑join{following of :if following's}    skip id ke following ka self id ko follow Backend
+                                                        skip id ke following ke following ko already follow(suggested ko already follow)
+        
+        SELECT DISTINCT f2.following_id AS suggested_id         --so actually returning following_id of 2nd nested query[followers of followers of id]
+        FROM alumni_follows f1
+        JOIN alumni_follows f2
+        ON f1.following_id = f2.follower_id         -- “take those people al_riya follows (like al_karan), and see who they follow.”
+        WHERE f1.follower_id = 'al_riya'            -- step 1: who al_riya follows
+        AND f2.following_id <> 'al_riya'            -- exclude self
+        AND f2.following_id NOT IN (                -- exclude already-followed:
+            SELECT following_id                         --Don’t suggest people al_riya already follows directly.
+            FROM alumni_follows
+            WHERE follower_id = 'al_riya'
+        );
+
+
+6. Notifications (bulk updates, computed columns, keyset pagination)
+    GET /api/alumni/:id/notifications — via notification_states JOIN notifications
+        select ns.user_id, n.type, n.title
+        from notification_states as ns
+        join notifications n
+        on ns.notification_id = n.id
+        where ns.user_id='al_riya';
+
+    GET /api/alumni/:id/notifications/unread-count — COUNT WHERE is_read = false
+        select user_id, count(*) as unread_coount
+        from notification_states
+        where user_id='al_riya'
+        and is_read=false
+        group by user_id;
+
+    PATCH /api/alumni/:id/notifications/mark-all-read — bulk UPDATE notification_states
+        update notification_states set is_read=true 
+        where user_id='al_riya' and is_read=false;
+
+    GET /api/notifications/campaign/:campaignGroupId/progress — sent_count/total_targets, plus % complete (computed column)
+        1. Using NULLIF:
+            SELECT
+                id,
+                sent_count,
+                total_targets,
+                (sent_count::float / NULLIF(total_targets, 0)) * 100 AS percent_complete
+            FROM notifications
+            WHERE campaign_group_id = 'cg_123';
+
+        2. Using CASE:
+            SELECT
+                id,
+                sent_count,
+                total_targets,
+                CASE
+                    WHEN total_targets IS NULL OR total_targets = 0 THEN NULL
+                    ELSE (sent_count::float / total_targets) * 100
+                END AS percent_complete
+            FROM notifications
+            WHERE campaign_group_id = 'cg_123';
+
+    **GET /api/notifications/keyset — SELECT * FROM alumni WHERE id > :cursor ORDER BY id ASC LIMIT 500 (practice the exact keyset pagination pattern from the campaign worker)
+        SELECT *
+        FROM notifications
+        WHERE id > :cursor
+        ORDER BY id ASC
+        LIMIT 500;
+
+
+7. Search & Reporting (ILIKE, CASE pivots, window functions, multi-join reports)
+    GET /api/search/alumni?q=query — ILIKE across name/email/current_company
+        select * from alumni where name ilike '%riya' 
+        or email ilike '%example.com';
+
+    GET /api/search/jobs?q=query — ILIKE across title/company/description
+        select * from jobs where title ilike 'Backend%' 
+        or description ilike '%Postgres%';
+
+    **GET /api/reports/alumni-by-batch-branch — "pivot"-style report: rows = batch_year, columns = branch, cell = COUNT(*) (CASE WHEN + GROUP BY, or crosstab)
+        SELECT
+            batch_year,
+            COUNT(*) AS total,
+            COUNT(CASE WHEN branch = 'Computer Science and Engineering' THEN 1 END) AS cse_count,
+            COUNT(CASE WHEN branch = 'Computer Applications' THEN 1 END) AS bca_count
+        FROM alumni
+        GROUP BY batch_year
+        ORDER BY batch_year;
+
+            1. Each COUNT(CASE WHEN …) acts like a pivot column.
+            2. Rows are grouped by batch_year.
+
+    ***GET /api/reports/campus-engagement — per campus: alumni count, % registered, avg followers_count, event RSVP count (multiple JOINs + subqueries in SELECT list)
+        1. Using Sub-Query:
+            select c.id as campus_id,
+            count(*) as alumni_count,
+            avg(case when a.is_registered then 1 else 0 end)
+            ::float * 100 as percent_registered,
+            avg(a.followers_count) as avg_followers,
+            (
+                select count(*) from rsvps r
+                where r.alumni_id in(
+                    select id from alumni where campus_id=c.id
+                )
+            ) as total_event_rsvps
+            from campuses c
+            join alumni a
+            on a.campus_id = c.id
+            group by c.id
+            order by c.id;
+        
+    *****GET /api/reports/top-alumni-by-engagement — RANK() alumni by (followers_count + post count + connection count) using a window function
+        with post_count as(
+            select author_id, count(*) as post_count
+            from posts
+            group by author_id
+            ),
+            connection_count as(
+            select follower_id as alumni_id, count(*) as connection_count
+            from alumni_follows
+            group by follower_id
+            )
+            select
+            a.id,
+            a.name,
+            a.followers_count,
+            coalesce(p.post_count, 0) as post_count,
+            coalesce(c.connection_count, 0) as connection_count,
+            (a.followers_count + coalesce(p.post_count, 0), coalesce(c.connection_count, 0)) as engage_score,
+            rank()over(order by(a.followers_count + COALESCE(p.post_count, 0) + COALESCE(c.connection_count, 0)) desc ) as rank
+            from alumni a
+            left join post_count p on a.id=p.author_id
+            left join connection_count c on a.id=c.alumni_id
+            order by rank;
+
+
+        1. CTEs compute aggregates first.
+        2. JOINs bring them into the main query.
+        3. Window function RANK() assigns ranking by engagement score.
