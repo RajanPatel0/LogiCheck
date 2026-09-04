@@ -219,7 +219,7 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
                 and ao.value=a.branch         #main diff. 3
             );
         
-        2. Using "left Join with is null on right's table" for left-alumni(all branches data) right-academic_options(fixed corrected one's) : [so getting is null from right]
+        2. Using "left Join with "is null" on right's table" for left-alumni(all branches data) right-academic_options(fixed corrected one's) : [so getting is null from right]
             SELECT distinct a.name, a.branch from alumni a
             left join academic_options ao
                 on a.branch=ao.value ND ao.type = 'BRANCH'
@@ -231,7 +231,7 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
             3. a matching UPDATE registration_requests -> 4. insert into "normalized_merge_logs" recording what changed
             5. commit
 
-        1. BEGIN;
+            -- Step 0: BEGIN;
 
             -- Step 1: Update alumni
             UPDATE alumni
@@ -498,26 +498,40 @@ Alumni-Portal: SQL Query Practice:    Many "API" We have to serve with a query.
             on a.campus_id = c.id
             group by c.id
             order by c.id;
+
+        2. Using Left JOin:
+            SELECT
+                c.id AS campus_id,
+                COUNT(DISTINCT a.id) AS alumni_count,
+                AVG(CASE WHEN a.is_registered THEN 1 ELSE 0 END)::float * 100 AS percent_registered,
+                AVG(a.followers_count) AS avg_followers,
+                COUNT(r.event_id) AS total_event_rsvps
+            FROM campuses c
+            JOIN alumni a ON a.campus_id = c.id
+            LEFT JOIN rsvps r ON r.alumni_id = a.id
+            GROUP BY c.id
+            ORDER BY c.id;
+
         
     *****GET /api/reports/top-alumni-by-engagement — RANK() alumni by (followers_count + post count + connection count) using a window function
         with post_count as(
-            select author_id, count(*) as post_count
-            from posts
-            group by author_id
+            select author_id, count(*) as post_count        --cte 1
+                from posts
+                group by author_id
             ),
-            connection_count as(
-            select follower_id as alumni_id, count(*) as connection_count
-            from alumni_follows
-            group by follower_id
+            connection_count as(                            --cte 2
+                select follower_id as alumni_id, count(*) as connection_count
+                from alumni_follows
+                group by follower_id
             )
             select
-            a.id,
-            a.name,
-            a.followers_count,
-            coalesce(p.post_count, 0) as post_count,
-            coalesce(c.connection_count, 0) as connection_count,
-            (a.followers_count + coalesce(p.post_count, 0), coalesce(c.connection_count, 0)) as engage_score,
-            rank()over(order by(a.followers_count + COALESCE(p.post_count, 0) + COALESCE(c.connection_count, 0)) desc ) as rank
+                a.id,
+                a.name,
+                a.followers_count,
+                coalesce(p.post_count, 0) as post_count,
+                coalesce(c.connection_count, 0) as connection_count,
+                (a.followers_count + coalesce(p.post_count, 0), coalesce(c.connection_count, 0)) as engage_score,
+                rank()over(order by(a.followers_count + COALESCE(p.post_count, 0) + COALESCE(c.connection_count, 0)) desc ) as rank
             from alumni a
             left join post_count p on a.id=p.author_id
             left join connection_count c on a.id=c.alumni_id
