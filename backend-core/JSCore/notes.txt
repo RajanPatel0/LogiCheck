@@ -1,0 +1,254 @@
+🧠 Mental Models for Long-Term Retention
+To map this in your brain forever, don't memorize the rules; memorize the "Why" and the "When".
+
+1. The "this" Keyword: "Who called me?"
+Mental Model: Think of this as the caller ID of a function. It doesn't matter where the function was born (unless it's an arrow function), it matters who pressed the call button.
+
+user.greet() ➔ user pressed the button. this = user.
+const myFunc = user.greet; myFunc(); ➔ No one pressed the button (standalone). this = window (or undefined in strict mode).
+Arrow Functions: Arrow functions don't have a caller ID. They use their parent's phone. They inherit this from the surrounding code (lexical scoping).
+
+2. "call", "apply", "bind": The "Context Forcers"
+Mental Model: You are forcing a function to use a specific caller ID.
+
+call = Comma separated. Do it NOW. (greet.call(user, 'NY', 'USA'))
+apply = Array. Do it NOW. (greet.apply(user, ['NY', 'USA']))
+bind = Build a new function. Do it LATER. (const boundGreet = greet.bind(user))
+
+3. "Hoisting": "The Two-Pass System"
+Mental Model: JavaScript is a scanning machine that reads your file twice.
+
+Pass 1 (Memory Phase): It looks only for declarations (var a, function myFunc()). It moves them to the top of memory. It initializes var with undefined, but throws let/const into a "Temporal Dead Zone" (TDZ) where they cannot be touched.
+Pass 2 (Execution Phase): It runs the code line-by-line, doing the actual math and assignments (a = 10).
+
+-----------------------------------------------------------------
+
+"Curry":  Currying transforms a function that takes multiple arguments f(a, b, c) into a sequence of functions that each take a single argument f(a)(b)(c) — 
+or any combination in between, like f(a, b)(c)
+
+Real use case: Building reusable validation or filter pipelines — e.g., filterByField('status')('active')(userList)
+
+----------------------------------------------------------------
+
+"Debounce":  used to limit the frequency of function execution, especially during events triggered rapidly, such as typing, scrolling, or resizing. 
+            The call or apply methods are often used in debouncing to ensure that the debounced function executes in the correct context (this) and with the appropriate arguments
+"It's like Elevator Door"
+        The door is programmed to close after 3 seconds. 
+        But if another person rushes in before the 3 seconds are up, the timer resets. 
+        The elevator will only move when 3 full seconds have passed without anyone new stepping in.
+
+Ex 1: "In SearchBar Input": 
+    without debounce on search "apple" fires 5 db queries: a, ap, app, appl, aaple
+    this way we gonna crash our backend/hit api rate limits
+    **But with denounce: It waits 400ms(desired time) after we stopped typing -> firing exactly 1 query for "apple"
+Ex 2: Auto-Saving complex/long draft/form(to prevent crash or in b/w loss)
+    using "onChange" on textarea & debounce of 2000ms delay
+    fires only patch if users stops typing for defined time above
+Ex 3: Debounce on resize handler for users window dragging to resize windows in dashboards
+      charts dimensions recalculates(SVG) so need debounce not throttle cuzz throttle make redraw
+      using debounce charts waits until users finish resizes the window -> expensive recalc.
+
+-----------------------------------------------------------------
+
+"Throttle": It limits how often a function can be executed over time, even if it’s triggered repeatedly.
+          It ensures that a function runs at most once in a specified time interval, regardless of how many times the event fires. 
+
+It's like "Subway Turnstile"
+        the turnstile unlocks, lets them through, and instantly locks itself for exactly 2 seconds. 
+        No matter how many people push against the locked turnstile during those 2 seconds, 
+        it will not budge. Once the 2 seconds are up, the very next person who pushes gets through, and it locks again.
+
+**Multi-click API scam**: prevent duplicate clicks after 1 click for netx N millisec 
+***(Disabling the button via React state while the API call is in flight is usually the best real-world practice here)***
+
+Ex 1: Infinite scroll / scroll-position tracking, resize handlers, 
+      "save draft" on every keystroke but capped at once per N seconds
+      "window.onscroll" event fires dozens of times per millimeter scrolled
+      so for check if need to fetch next page of tasks -> need throttle that 
+      calculate to run once every 200ms to prevent the browser from freezing
+
+Ex 2: applications that track live locations(real-time map rendering)
+      GPS coordinates might stream in 60 times a sec or 30
+      forcing leaflet marker 60/30 times a second cause massive UI lag
+      so by wrapping marker-update function in throttle of 100ms 
+      the map updates at a smooth 10 frames/sec
+
+Ex 3: Smart auto Save:
+    if long typing non stop for 15 mins (in that case using throttle prevent crash loss)
+    under continuous working if not stops
+
+⚡ Key takeaway:
+
+Basic print → shows debounce mechanics.
+Complex args → proves it handles structured data.
+Real-world search input → demonstrates why debounce is essential (performance + user experience).
+
+-----------------------------------------------------------------
+
+"Memoize": for improving performance by storing the results of expensive function calls and returning the cached result when the same inputs occur again. 
+         It is particularly useful for recursive functions or any function with repeated calculations.
+
+It's like "brilliant but lazy librarian"
+        if anything asked it first calc(if not knows) then tell us && stores that on index card
+        so next time after some time if anyone asks it return immediately now (without calc.) from index card
+    
+"Memoization is trading memory (storing index cards) for speed (skipping calculations)."
+
+Ex 1: Expensive Backend API Calls (Node.js)
+        in ai-platform building anything generation takes time and api const
+        so on refresh and call same generation again -> we're not gonna hit ai again
+        by memoizing, node.js server serves instantly cached generated output for 2nd time
+
+Ex 2: Complex Map Routing Calculations (Frontend/Backend)
+    When building an ML-powered store discovery platform that uses OSRM routing or Leaflet to calculate distances between user coordinates and local stores,
+    he math to calculate travel time is computationally heavy. If the user toggles between "Store A" and "Store B" repeatedly,
+    then memoizing dist. calc prevents the server/client from recalc same thing again
+
+Ex 3: React's "useMemo" & "React.memo"
+        when on massive array of data we ran sorting algo 
+        so wrap that login in useMemo tell react: only recalc sorted list if raw data changed
+        else give me cached version of last render
+
+⚡ Key Takeaways
+Debounce → waits until activity stops.
+Throttle → enforces a max rate.
+Memoize → caches results for identical inputs.
+
+------------------------------------------------------------------
+
+"Promise": is an object that represents the eventual completion(or failure) of an asynchronous action's eventual success value or failure reason.
+           It lets asynchronous method to return values like synchronous method.
+           Instead of immediately returning the final value- the asynchronous method "returns a promise to supply the value" at some point in future in defined frontend logic
+
+created using "Promise" constructor, which takes an executor function with two arguments: "resolve" and "reject" (these two arg's are callbacks provided by js itself)
+resolve function-> called when asynchronous operation is successful
+reject function-> called when it fails.
+
+Once promise created -> we can use then(), catch(), finally() method to handle the promise's eventual value / error
+
+It's like a restaurent-buzzer (we get when waiting for table): when we get it's in pending state
+        as we have buzzer we're having guarantee that restaurent eill contact us for sure
+        1. Resolve: buzzer flash green -> our table is repeatedly
+        2. Reject: buzzer flash red -> kitchen got on fire/ or any other closing emergency
+        3. the .then()/.catch() methods = are way of telling to friends what to do on buzzer any action
+                if green -> we go eat || if red -> we go some other place  
+
+        Promise Methods:
+                JavaScript provides several static methods for working with promises:
+                Promise.all(): Waits for all promises to be fulfilled or any to be rejected.
+                Promise.allSettled(): Waits for all promises to settle (either fulfilled or rejected).
+                Promise.any(): Waits for any promise to be fulfilled.
+                Promise.race(): Settles as soon as any of the promises settle.
+                Promise.resolve(): Returns a promise that is resolved with the given value.
+                Promise.reject(): Returns a promise that is rejected with the given reason.
+
+Ex 1: Backend Database Queries(node, express)
+        in n/e webapp's every single db query via prisma/mongoose returns a Promise(or promise like thenable)
+
+Ex 2: Avoiding "Callback Hell" in API's
+        In building complex ML discovery platform where we need to 1. fetch a user-> 2. then fetch their location-> 3. then stores near location 
+        Without Promise -> it's nested callback hell || with Promise (its chaining)
+                fetchUser(userId)
+                .then(user => fetchLocation(user.address))
+                .then(coords => calculateOSRMRoute(coords, storeLocation))
+                .then(route => renderMap(route))
+                .catch(handleAnyError); // One catch handles errors for ALL steps!
+
+***Chaining: each .then() returns a new MyPromise, so values flow forward.***
+
+⚡ Key Insights
+State machine: starts pending, then moves to fulfilled or rejected.
+Callback queue: .then() pushes handlers into this.callback if still pending.
+Chaining: each .then() returns a new MyPromise, so values flow forward.
+Error handling: if reject is called, the onRejected handler runs.
+
+-----------------------------------------------------------------------------------------------
+
+"Promise.all": is a method in JavaScript that allows you to handle multiple promises concurrently. 
+               *It takes an "iterable of promises" as input and returns a single promise that resolves 
+               *when all the input promises have resolved, or rejects if "any of the input promises reject".
+
+        Promise.all(iterable)
+                iterable: An iterable object, such as an array, containing promises.
+
+It's like "waiter serving a table" diff orders(say 3)
+        first takes 3 orders to kitchen at same time -> 1st order prepares in 100ms 
+        2nd in 200ms and then -> 3rd in 300ms 
+
+        **Order Preservation**: The waiter does not bring the plates out one by one
+                wait until all dishes are done, and then place them on the tray in the exact order of the seat numbers 1->2->3
+
+        **if any order missing/not fulfilled -> "reject" then waiter immediately goes to table and pass on reject 
+                ignoring the other two orders (so those 2 also come with any(yes/no/replce) resolve of missing order)
+        
+        "It's all or nothing"
+
+Ex 1: Loading a dashboard that needs user profile + notifications + settings, all fetched in parallel, 
+        page renders only when all three are ready.
+
+Ex 2: Preventing "Waterfall in React"
+        in dashboard(admin panel) -> needs 1. user details, 2. their tasks, 3. system status
+        Waterfall -> takes 3sec "1->1->1"
+                // Waits 1s, then waits 1s, then waits 1s.
+                const user = await fetchUser(id); 
+                const tasks = await fetchTasks(id); 
+                const stats = await fetchStats();
+        Concurrent -> takes 1 sec 
+                // Fires all 3 at the exact same time. Total time = the longest single request.
+                const [user, tasks, stats] = await Promise.all([
+                     fetchUser(id),
+                     fetchTasks(id),
+                     fetchStats()
+                ]);
+
+Ex 3: Bulk DataBase Operations(Node/DB)
+        if uploading csv file of 100 new users -> we won't insert them 1 by 1 in for loop
+        **we Execute all 100 database inserts concurrently!
+                const savePromises = employees.map(emp => {
+                        const newEmp = new Employee(emp);
+                        return newEmp.save(); // returns a promise
+                });
+                
+                await Promise.all(savePromises);
+                res.send("All employees saved successfully.");
+
+***.forEach always returns undefined. .map returns a brand new array populated with the results of your callback. 
+Since Promise.all specifically requires an array of promises as its argument, .map naturally generates exactly what it needs.***
+
+
+⚡ Key Takeaways
+Order preservation: results are aligned with input indices, not resolution speed.
+All or nothing: one rejection cancels the whole batch.
+Concurrency: fires all promises at once, total time = longest single promise.
+Use .map for bulk DB/API operations to generate arrays of promises.
+
+
+------------------------------------------------------------------------------------------
+
+"deepClone": A deep clone creates a completely "independent copy of an object", including "all nested objects", 
+                so changes in the clone do not affect the original. Modern JavaScript offers multiple ways to achieve this.
+
+It's like a "Replica House" not as the shallow copy only:  
+        1. shallow copy: if we using spread operator(const clone = { ...original}) we've build a new House      
+        but if any safe inside(as nested obj.) so that's remains original we just copies key to original safe
+        that original value affected too
+
+        2. "deepClone": it builds exact copy of house, also new replica of safe and the replica of inside values also   
+        here original remains safe not affected
+
+Ex 1: "Redux/zustand State Mgmt."
+        if we've global state object conatins nested cart-> "state.user.cart.item" & we wanna push new item
+        react ignore changes and refuse re-renders cuzz "memory-addess" of states didn't changed
+        we need deepClone the state , -> mutate the clone and -> return clone
+
+Ex 2: complex from drafts(react): building mern dashboard(Admin) of task manager
+        if pulls some complex task object from db, which if "includes nested arrays of sub-tasks"
+        so on "edit/update" we must bind the form to a deepclone of the tasks
+        cuzz if we just bind form to original state without deepclone then if partially edit -> then cancel opertaion 
+        shows UI incorrectly mutated till refreshes so need fresh deepClone till processing of edit till success and UI wil show that cloned 
+        after update original got fetched on next refresh so UI reloads new as smooth
+
+⚡ Key Takeaway
+Shallow copy → new house, but safes inside are still shared.
+Deep clone → replica house, replica safes, replica contents.
+WeakMap → prevents memory leaks when cloning objects with circular references.
