@@ -1,14 +1,15 @@
-function debounce(func, delay){
-  let timer=null;
+function debounce(func, delay){     //debounce function to limit the rate of API calls
+  let timer=null;                   //timer variable to hold the timeout ID 
 
-  return function(...args){
-    clearTimeout(timer);
-    timer = setTimeout(()=>
-        func(...args), delay
+  return function(...args){         //return a new function that will be called when the input event is triggered
+    clearTimeout(timer);            //clear the previous timeout to reset the debounce timer
+    timer = setTimeout(()=>         //set a new timeout to call the original function after the specified delay
+        func(...args), delay        //call the original function with the provided arguments after the delay
     );
   };
 };
 
+//Use 1: Basic Debouncing Printing
 // const debounceFunc = debounce((msg)=>{
 //     console.log("Debounced", msg);
 // }, 2000);

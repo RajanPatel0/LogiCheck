@@ -4,9 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
-    <script src="bind.js"></script>
+    <!-- <script src="bind.js"></script> -->
+    <!-- <script src="throttle.js"></script> //for resize window test using throttle function -->
 </head>
-<body>
+<body id="resize">
     Hello EveryOne!!
+
+    <!-- debounce practice -->
+    <input id="search" placeholder="Type to search..." />
+    <pre id="log"></pre>
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <script>    //debounce practice
+        function debounce(fn, delay) {  // debounce function to limit the rate of API calls
+            let timer;  //timer variable to hold the timeout ID
+            // return a new function that will be called when the input event is triggered
+            return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+        }
+        const log = document.getElementById('log'); // get the log element to display the API call simulation
+        const search = debounce((val) => {      // create a debounced version of the search function
+            log.textContent += `API call for: "${val}"\n`; // simulate fetch(`/api/search?q=${val}`)
+        }, 1000);   // set the debounce delay to 1000ms (1 second)
+        // add an event listener to the search input to call the debounced search function on input
+        document.getElementById('search').addEventListener('input', e => search(e.target.value));
+    </script>
+
+
 </body>
 </html>
