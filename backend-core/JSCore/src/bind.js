@@ -3,10 +3,10 @@
 //          because event handlers lose this when passed as callbacks. 
 //          Also: partial application for logging/config functions (e.g., a logger.bind(null, 'AUTH_MODULE')).
 
-//1. This Keyword: The this keyword refers to the object that is executing the current function. 
+//1. "this" Keyword: The "this" keyword refers to the object that is executing the current function. 
 //                 In JavaScript, the value of this is determined by how a function is called. 
-//                 When a function is called as a method of an object, this refers to **that** object. 
-//                 When a function is called as a standalone function, this refers to the global object (window in browsers). 
+//                 When a function is called as a method of an object, "this" refers to **that** object. 
+//                 When a function is called as a standalone function, "this" refers to the global object (window in browsers). 
 //                 In strict mode, this will be undefined for standalone functions.
 
 //1.1: In a method of an object, this refers to the object itself.
@@ -55,7 +55,7 @@
 // another.say();   //here this.name refers to another obj.
 
 
-//2: Call: Accepts arguments separatelt & immediately executes function with a given this value and arguments provided individually.
+//2: Call: Accepts arguments separately & immediately executes function with a given this value and arguments provided individually.
 //2.1: Simple obj passing to another obj using call method.
 // function greet(user, city){
 //     console.log(user.name, "from", city);
@@ -75,6 +75,8 @@
 // const user3={
 //     name: "Rajan"
 // }
+
+//**Without call, this would be global. With call, you force this to be user3.
 
 // greet(user3, "Ludhiana");   //without call: not showing city because we not pass city in function call. So, we need to use call method to pass obj and city as argument.
 // greet.call(user3, "Ludhiana");   //with call: showing city because we pass obj and city in call method. Here this.name refers to user3 obj.
