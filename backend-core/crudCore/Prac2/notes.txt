@@ -1,0 +1,152 @@
+the important part: GET tree
+
+This is where the actual interview logic comes in.
+
+We have MongoDB data like:
+
+A parentId=null
+B parentId=A
+C parentId=B
+D parentId=A
+E parentId=D
+
+MongoDB gives us a flat array:
+
+[
+  { _id: A, parentId: null },
+  { _id: B, parentId: A },
+  { _id: C, parentId: B },
+  { _id: D, parentId: A },
+  { _id: E, parentId: D }
+]
+
+But frontend wants:
+
+A
+├── B
+│   └── C
+└── D
+    └── E
+
+So we need:
+
+HashMap + two passes
+
+This is the pattern I want you to memorize.
+
+PASS 1
+Every comment → put into Map
+
+PASS 2
+Every comment → attach to its parent
+
+ROOT comments → separate array
+
+------------------------------------------
+
+Understand the algorithm visually
+
+Suppose:
+
+comments =
+[
+ A(parent=null),
+ B(parent=A),
+ C(parent=B),
+ D(parent=A)
+]
+Pass 1
+
+We create:
+
+commentMap = {
+   A: { ..., replies: [] },
+   B: { ..., replies: [] },
+   C: { ..., replies: [] },
+   D: { ..., replies: [] }
+}
+
+Think:
+
+ID → Object
+
+That's the entire purpose of the Map.
+
+Pass 2
+
+We process A:
+
+A.parentId = null
+
+Therefore:
+
+rootComments.push(A)
+
+Then B:
+
+B.parentId = A
+
+Find:
+
+commentMap[A]
+
+Then:
+
+commentMap[A].replies.push(B)
+
+Now:
+
+A
+└── B
+
+Then C:
+
+C.parentId = B
+
+Therefore:
+
+commentMap[B].replies.push(C)
+
+Now:
+
+A
+└── B
+    └── C
+
+Then D:
+
+D.parentId = A
+
+Therefore:
+
+commentMap[A].replies.push(D)
+
+Final:
+
+A
+├── B
+│   └── C
+└── D
+
+---------------------------------------
+
+The Difference: Without .lean() vs With .lean()
+1. Without .lean(): A "Heavy" Document
+Normally, when Mongoose reads from the database, it wraps every document with built-in internal tools, functions, and strict schema rules (.save(), .isModified(), validation checks, change tracking).
+
+Because it has a strict schema, you cannot freely add new fields to it:
+
+JavaScript
+const comments = await Comment.find();
+
+comments[0].replies = []; 
+// ❌ Mongoose checks its schema: "replies is not in commentSchema!"
+// It either strips 'replies' out or ignores it when sending the JSON response.
+2. With .lean(): A "Normal" JavaScript Object
+When you append .lean(), Mongoose skips all that wrapping. It gives you a plain, everyday JavaScript {} object:
+
+JavaScript
+const comments = await Comment.find().lean();
+
+comments[0].replies = []; 
+// ✅ Works perfectly! It is just a standard JS object now.
