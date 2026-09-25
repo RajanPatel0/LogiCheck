@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id       Int       @id @default(autoincrement())
+  name     String
+  email    String    @unique
+  bookings Booking[]
+}
+
+model Movie {
+  id       Int     @id @default(autoincrement())
+  title    String
+  duration Int
+  language String
+  shows    Show[]
+}
+
+model Theater {
+  id       Int     @id @default(autoincrement())
+  name     String
+  location String
+  seats    Seat[]
+  shows    Show[]
+}
+
+model Seat {
+  id        Int        @id @default(autoincrement())
+  theaterId Int
+  row       String
+  number    Int
+
+  theater   Theater    @relation(fields: [theaterId], references: [id])
+  showSeats ShowSeat[]
+
+  @@unique([theaterId, row, number])
+}
+
+model Show {
+  id        Int        @id @default(autoincrement())
+  movieId   Int
+  theaterId Int
+  startTime DateTime
+  endTime   DateTime
+
+  movie     Movie      @relation(fields: [movieId], references: [id])
+  theater   Theater    @relation(fields: [theaterId], references: [id])
+  showSeats ShowSeat[]
+  bookings  Booking[]
+}
+
+model ShowSeat {
+  id        Int            @id @default(autoincrement())
+  showId    Int
+  seatId    Int
+  status    ShowSeatStatus @default(AVAILABLE)
+
+  show      Show         @relation(fields: [showId], references: [id])
+  seat      Seat         @relation(fields: [seatId], references: [id])
+  bookings  BookingSeat[]
+
+  @@unique([showId, seatId])
+}
+
+model Booking {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  showId      Int
+  status      BookingStatus @default(CONFIRMED)
+  totalAmount Decimal
+  createdAt   DateTime      @default(now())
+
+  user        User          @relation(fields: [userId], references: [id])
+  show        Show          @relation(fields: [showId], references: [id])
+  seats       BookingSeat[]
+}
+
+model BookingSeat {
+  id         Int      @id @default(autoincrement())
+  bookingId  Int
+  showSeatId Int
+  price      Decimal
+
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  showSeat   ShowSeat @relation(fields: [showSeatId], references: [id])
+
+  @@unique([bookingId, showSeatId])
+}
+
+enum ShowSeatStatus {
+  AVAILABLE
+  BOOKED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}

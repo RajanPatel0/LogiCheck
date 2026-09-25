@@ -1,0 +1,151 @@
+CINEMA BOOKING SYSTEM:
+Design a cinema booking system. A movie can play in multiple theaters, theaters have seats, and users can book seats for a particular show
+
+#What are the entities?
+User
+Movie
+Theater
+Seat
+Show
+ShowSeat
+Booking
+BookingSeat
+
+#The most important relationship is:
+Movie
+   ↓
+Show
+   ↓
+Theater
+   ↓
+Seats
+
+#But that isn't enough.
+Because:
+
+Seat A1
+
+could be:
+
+AVAILABLE for 6 PM show
+BOOKED    for 9 PM show
+
+Therefore we need:
+
+ShowSeat
+
+---------------------------------------
+
+Why ShowSeat exists
+This is the interview trap.
+
+Suppose:
+Seat A1
+exists.
+
+There are three shows:
+
+Show 1 → 6 PM
+Show 2 → 9 PM
+Show 3 → tomorrow 6 PM
+
+You cannot store:
+
+Seat A1
+status = BOOKED
+
+because:
+
+A1 might be booked for Show 1
+but available for Show 2
+
+Therefore:
+
+ShowSeat
+-------------------------
+showId    seatId    status
+S1        A1        BOOKED
+S2        A1        AVAILABLE
+S3        A1        AVAILABLE
+
+🔥 This is the key design insight.
+
+-------------------------------------
+
+                    ┌──────────────┐
+                    │    Movie     │
+                    │ PK id        │
+                    └──────┬───────┘
+                           │
+                           │ 1:N
+                           ▼
+                    ┌──────────────┐
+                    │     Show     │
+                    │ PK id        │
+                    │ FK movieId   │
+                    │ FK theaterId │
+                    │ startTime    │
+                    └──────┬───────┘
+                           │
+                           │ 1:N
+                           ▼
+                    ┌──────────────┐
+                    │  ShowSeat    │
+                    │ PK id        │
+                    │ FK showId    │
+                    │ FK seatId    │
+                    │ status       │
+                    └──────▲───────┘
+                           │
+                           │ N:1
+                           │
+                    ┌──────┴───────┐
+                    │     Seat     │
+                    │ PK id        │
+                    │ FK theaterId │
+                    │ row          │
+                    │ number       │
+                    └──────▲───────┘
+                           │
+                           │ N:1
+                    ┌──────┴───────┐
+                    │   Theater    │
+                    │ PK id        │
+                    └──────────────┘
+
+
+User
+ │
+ │ 1:N
+ ▼
+Booking
+ │
+ │ 1:N
+ ▼
+BookingSeat
+ │
+ │ N:1
+ ▼
+ShowSeat
+
+------------------------------------------
+**MOST_IMPORTANT**:
+User
+ ↓
+select Movie
+ ↓
+select Theater
+ ↓
+select Show
+ ↓
+fetch ShowSeats
+ ↓
+user chooses A1,A2
+ ↓
+check availability
+ ↓
+create Booking
+ ↓
+create BookingSeats
+ ↓
+mark ShowSeats BOOKED
