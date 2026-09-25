@@ -1,0 +1,4 @@
+Cart Inventory CheckOut System:
+
+User -> Cart -> CartItem -> Products
+Cart -> Order -> OrderItem -> Products
