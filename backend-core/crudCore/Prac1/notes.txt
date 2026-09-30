@@ -1,0 +1,35 @@
+Search, Filtering & Multi-field Regex with Pagination:
+
+In Next.js, TypeScript, Mysql, Prisma v7
+
+API now supports
+GET /api/products
+GET /api/products?search=apple
+GET /api/products?category=Electronics
+GET /api/products?page=2&limit=5
+GET /api/products?search=apple&page=2&limit=5
+GET /api/products?search=apple&category=Electronics&page=2&limit=5
+
+
+-----------------------------------------------------
+
+
+                 ┌── search
+                 │
+Request ─────────┼── category
+                 │
+                 ├── page
+                 │
+                 └── limit
+                       ↓
+                 validation
+                       ↓
+                    Prisma
+                       ↓
+                     MySQL
+                       ↓
+              filtered records
+                       +
+                total count
+                       ↓
+                    JSON
