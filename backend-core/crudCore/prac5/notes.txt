@@ -1,0 +1,118 @@
+OFFSET pagination vs CURSOR / KEYSET pagination: Used In feeds / infinite scrolling / large datasets / activity logs / social timelines / transaction histories
+
+1. OFFSET:
+
+?page=100&limit=10
+        ↓
+skip = 990
+        ↓
+DB scans/skips previous rows
+        ↓
+return next 10
+
+
+http://localhost:3000/api/products-offset?page=1&limit=10
+    gets 1–10
+
+then /api/products-offset?page=2&limit=10
+    gets 11–20
+
+
+    page = 2
+    limit = 10
+
+    skip = (2 - 1) × 10
+        = 10
+
+
+Actual Logic: to skip as of skip value passed
+
+------------------------------------------
+2. CURSOR
+
+?cursor=990&limit=10
+        ↓
+WHERE id > 990
+        ↓
+ORDER BY id
+        ↓
+LIMIT 10
+        ↓
+return next 10
+
+/api/products-cursor?limit=10
+    here's no cursor
+
+    so just getting
+        where id > 0 
+            we get 1,2,3,4,5....10
+
+
+    api returns:
+        {
+            "pagination": {
+                "limit": 10,
+                "hasNextPage": true,
+                "nextCursor": 10
+            }
+        }
+
+then /api/products-cursor?cursor=10&limit=10
+    here cursor = 10
+    
+    means:
+        where id > 10
+            11, 12, 13, 14....20
+
+    {
+        "nextCursor": 20
+    }
+
+then /api/products-cursor?cursor=20&limit=10
+    and so on
+
+
+Actual Logic: to find gt cursor value given
+
+------------------------------------------
+
+k3b:
+1. why take: "limit+1"
+
+if limit = 10
+then we actually request 11 records from 10 - 20
+
+which confused that there's another page if it gives 11 records ( 1 page = 10, 2 page = 1)
+
+---------------------------------
+
+Actual Real World system actually sort by 
+"createdAt DESC" rather than id "ASC"
+
+For example: (ORDER BY createdAt DESC, id DESC)
+    createdAt + id
+        because two products can potentially have the same timestamp.
+
+WHERE
+    createdAt < cursorCreatedAt
+    OR
+    (
+      createdAt = cursorCreatedAt
+      AND id < cursorId
+    )
+
+
+STAGE 1
+Simple ID cursor
+       ↓
+Understand cursor mechanics
+
+STAGE 2
+createdAt + id compound cursor
+       ↓
+Understand real-world keyset pagination
+
+STAGE 3
+Search + filters + cursor
+       ↓
+Combine with your previous Tier-2 task
